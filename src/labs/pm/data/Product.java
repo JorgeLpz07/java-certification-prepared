@@ -32,7 +32,7 @@ import static java.math.RoundingMode.HALF_UP;
  * @version 4.0
  * @author Jorge Augusto Lopez Ortega
  */
-public abstract class Product {
+public abstract class Product implements Reatable<Product>  {
 
 	/**
 	 * A constant that defines a {@link java.math.BigDecimal BigDecimal} value of
@@ -84,11 +84,12 @@ public abstract class Product {
 		return price.multiply(DISCOUNT_RATE).setScale(2, HALF_UP);
 	}
 
+	@Override
 	public Rating getRating() {
 		return rating;
 	}
 
-	public abstract Product applyRating(Rating newRating);
+	// public abstract Product applyRating(Rating newRating);
 
 	public LocalDate getBestBefore() {
 		return LocalDate.now();
