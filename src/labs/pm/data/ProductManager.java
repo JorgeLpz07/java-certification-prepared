@@ -19,6 +19,8 @@ package labs.pm.data;
 import java.math.BigDecimal;
 import java.text.MessageFormat;
 import java.text.NumberFormat;
+import java.text.ParseException;
+import java.time.DateTimeException;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.format.FormatStyle;
@@ -33,6 +35,8 @@ import java.util.Map;
 import java.util.ResourceBundle;
 import java.util.Set;
 import java.util.function.Predicate;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
 
@@ -45,9 +49,16 @@ public class ProductManager {
 
 	private Map<Product, List<Review>> products = new HashMap<>();
 	private ResourceFormatter formatter;
+
+	private final ResourceBundle config = ResourceBundle.getBundle("labs.pm.data.config");
+	private MessageFormat reviewFormat = new MessageFormat(config.getString("review.data.format"));
+	private MessageFormat productFormat = new MessageFormat(config.getString("product.data.format"));
+
 	private static Map<String, ResourceFormatter> formaters = Map.of("en-GB", new ResourceFormatter(Locale.UK), "en-US",
 			new ResourceFormatter(Locale.US), "fr-FR", new ResourceFormatter(Locale.FRANCE), "ru-RU",
 			new ResourceFormatter(new Locale("ru", "RU")), "zh-CN", new ResourceFormatter(Locale.CHINA));
+
+	private static final Logger logger = Logger.getLogger(ProductManager.class.getName());
 
 	public ProductManager(Locale locale) {
 		this(locale.toLanguageTag());
@@ -79,7 +90,12 @@ public class ProductManager {
 	}
 
 	public Product reviewProduct(int id, Rating rating, String comments) {
-		return reviewProduct(findProduct(id), rating, comments);
+		try {
+			return reviewProduct(findProduct(id), rating, comments);
+		} catch (ProductManagerException e) {
+			logger.log(Level.INFO, e.getMessage());
+		}
+		return null;
 	}
 
 	public Product reviewProduct(Product product, Rating rating, String comments) {
@@ -95,12 +111,18 @@ public class ProductManager {
 		return product;
 	}
 
-	public Product findProduct(int id) {
-		return products.keySet().stream().filter(p -> p.getId() == id).findFirst().orElseGet(() -> null);
+	public Product findProduct(int id) throws ProductManagerException {
+		return products.keySet().stream().filter(p -> p.getId() == id).findFirst()
+				.orElseThrow(() -> new ProductManagerException("Product with id " + id + " not found!"));
+		// .get(); //.orElseGet(() -> null);
 	}
 
 	public void printProductReport(int id) {
-		printProductReport(findProduct(id));
+		try {
+			printProductReport(findProduct(id));
+		} catch (ProductManagerException e) {
+			logger.log(Level.INFO, e.getMessage());
+		}
 	}
 
 	public void printProductReport(Product product) {
@@ -125,6 +147,39 @@ public class ProductManager {
 				.forEach(p -> txt.append(formatter.formatProduct(p) + "\n"));
 
 		System.out.println(txt);
+	}
+
+	public void parseReview(String text) {
+		try {
+			Object[] values = reviewFormat.parse(text);
+			reviewProduct(Integer.parseInt((String) values[0]), Reatable.convert(Integer.parseInt((String) values[1])),
+					(String) values[2]);
+		} catch (ParseException | NumberFormatException e) {
+			logger.log(Level.WARNING, "Error parsing review " + text);
+		}
+	}
+
+	public void parseProduct(String text) {
+		try {
+			Object[] values = productFormat.parse(text);
+			int id = Integer.parseInt((String) values[1]);
+			String name = (String) values[2];
+			BigDecimal price = BigDecimal.valueOf(Double.parseDouble((String) values[3]));
+			Rating rating = Reatable.convert(Integer.parseInt((String) values[4]));
+
+			switch ((String) values[0]) {
+			case "D":
+				createProduct(id, name, price, rating);
+				break;
+			case "F":
+				LocalDate bestBefore = LocalDate.parse((String) values[5]);
+				createProduct(id, name, price, rating, bestBefore);
+				break;
+			}
+
+		} catch (ParseException | NumberFormatException | DateTimeException e) {
+			logger.log(Level.WARNING, "Error parsing product " + text + e.getMessage());
+		}
 	}
 
 	public Map<String, String> getDiscounts() {
