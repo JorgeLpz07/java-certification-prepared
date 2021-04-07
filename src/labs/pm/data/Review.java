@@ -17,12 +17,14 @@
 
 package labs.pm.data;
 
+import java.io.Serializable;
+
 /**
  * @version 1.0
  * @author Jorge Augusto Lopez Ortega
  */
 
-public class Review implements Comparable<Review> {
+public class Review implements Comparable<Review>, Serializable {
 
 	private Rating rating;
 	private String comments;

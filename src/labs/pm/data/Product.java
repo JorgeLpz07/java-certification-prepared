@@ -22,6 +22,8 @@ import java.util.Objects;
 
 import static java.math.RoundingMode.HALF_UP;
 
+import java.io.Serializable;
+
 /**
  * {@code Product} class represents properties and behaviorspf product objects
  * in the Product Managment System <br>
@@ -32,7 +34,7 @@ import static java.math.RoundingMode.HALF_UP;
  * @version 4.0
  * @author Jorge Augusto Lopez Ortega
  */
-public abstract class Product implements Reatable<Product>  {
+public abstract class Product implements Reatable<Product>, Serializable  {
 
 	/**
 	 * A constant that defines a {@link java.math.BigDecimal BigDecimal} value of
