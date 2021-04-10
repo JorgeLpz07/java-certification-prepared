@@ -17,10 +17,21 @@
 package labs.pm.app;
 
 import java.io.UnsupportedEncodingException;
-import java.math.BigDecimal;
-import java.time.LocalDate;
-import java.util.Comparator;
-import java.util.Locale;
+import java.util.List;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+import com.sun.net.httpserver.Authenticator.Result;
 
 import labs.pm.data.Product;
 import labs.pm.data.ProductManager;
@@ -39,27 +50,45 @@ public class Shop {
 	 * @throws UnsupportedEncodingException
 	 */
 	public static void main(String[] args) throws UnsupportedEncodingException {
-		ProductManager pm = new ProductManager("en-GB");
+		ProductManager pm = ProductManager.getInstance();
+		AtomicInteger clientCount = new AtomicInteger(0);
 
-		// pm.printProductReport(101);
+		Callable<String> client = () -> {
+			String clientId = "Client" + clientCount.incrementAndGet();
+			String threadName = Thread.currentThread().getName();
+			int productID = ThreadLocalRandom.current().nextInt(5) + 101;
+			String languageTag = ProductManager.getSupportedLocales().stream()
+					.skip(ThreadLocalRandom.current().nextInt(2)).findFirst().get();
+			StringBuilder log = new StringBuilder();
+			log.append(clientId + " " + threadName + "\n-\t start of log \t-\n");
 
-//		pm.createProduct(164, "Kombucha", BigDecimal.valueOf(1.99), Rating.NO_RATED);
-//		pm.reviewProduct(164, Rating.TWO_STAR, "Looks like tea but is it?");
-//		pm.reviewProduct(164, Rating.FOUR_STAR, "Fine tea");
-//		pm.reviewProduct(164, Rating.FOUR_STAR, "This is not tea");
-//		pm.reviewProduct(164, Rating.FIVE_STAR, "Perfect!");
-		// pm.printProductReport(164);
-		
-		// pm.dumpData();
-		// pm.restoreData();
-		
-//		pm.printProductReport(105);
-//		pm.printProductReport(164);
+			log.append(pm.getDiscounts(languageTag).entrySet().stream()
+					.map(entry -> entry.getKey() + "\t" + entry.getValue()).collect(Collectors.joining("\n")));
+			
+			Product product = pm.reviewProduct(productID, Rating.FOUR_STAR, "Yet another review.");
+			log.append((product != null) ? "\nProduct" + productID + " reviewed\n" : "\nProduct" + productID + " not reviewed\n" );
+			pm.printProductReport(productID, languageTag, clientId);
+			log.append(clientId + " generate reporto for "+ clientId + " product");
 
-//		pm.printProducts(p -> p.getPrice().floatValue() < 2,
-//				(p1, p2) -> p2.getRating().ordinal() - p1.getRating().ordinal());
-//		pm.getDiscounts().forEach((rating, discount) -> System.out.println(rating + "\t" + discount));
+			log.append("\n-\t end of log \t-\n");
+			return log.toString();
+		};
 
+		List<Callable<String>> clients = Stream.generate(() -> client).limit(5).collect(Collectors.toList());
+		ExecutorService executorService = Executors.newFixedThreadPool(3);
+		try {
+			List<Future<String>> results = executorService.invokeAll(clients);
+			executorService.shutdown();
+			results.stream().forEach(result -> {
+				try {
+					System.out.println(result.get());
+				} catch (InterruptedException | ExecutionException e) {
+					Logger.getLogger(Shop.class.getName()).log(Level.SEVERE, "Error retrieving client log", e);
+				}
+			});
+		} catch (InterruptedException ex) {
+			Logger.getLogger(Shop.class.getName()).log(Level.SEVERE, "Error invoking clients", ex);
+		}
 	}
 
 }
